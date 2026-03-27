@@ -36,6 +36,11 @@
         .active-task {
             animation: pulse-slow 2s infinite;
         }
+
+        /* 碼錶字體 */
+        .timer-font {
+            font-family: 'Courier New', Courier, monospace;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center p-4">
@@ -60,6 +65,8 @@
                 <select id="gameMode" class="w-full border-2 border-slate-100 rounded-xl p-2 focus:ring-2 focus:ring-blue-400 outline-none transition-all cursor-pointer">
                     <option value="sequence">顏色序列 (隨機排列)</option>
                     <option value="flash">閃視記憶 (時間到隱藏)</option>
+                    <option value="stroop">文字陷阱 (依文字判斷)</option>
+                    <option value="coordination">手腳並用 (肢體指令)</option>
                     <option value="collection">隨機指令 (數量+顏色)</option>
                 </select>
             </div>
@@ -97,9 +104,22 @@
     <!-- 主展示區 -->
     <main class="w-full max-w-6xl flex-grow flex flex-col">
         
-        <!-- 倒數計時條 -->
-        <div id="progressContainer" class="w-full h-3 bg-slate-100 rounded-full mb-6 overflow-hidden hidden border border-slate-200">
-            <div id="progressBar" class="h-full bg-gradient-to-r from-blue-400 to-indigo-500 w-0 transition-all duration-100 linear"></div>
+        <!-- 資訊欄：題數、碼錶、計時條 -->
+        <div class="mb-4">
+            <div id="infoDisplay" class="flex justify-center items-center gap-4 mb-2 hidden">
+                <!-- 題數 -->
+                <span class="bg-slate-800 text-white px-4 py-1 rounded-lg text-sm font-bold shadow-sm">
+                    第 <span id="currentQuestionNum">1</span> 題
+                </span>
+                <!-- 碼錶 (僅分:秒) -->
+                <span class="bg-blue-50 text-blue-700 border border-blue-200 px-4 py-1 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2">
+                    ⏱️ <span id="stopwatchDisplay" class="timer-font">00:00</span>
+                </span>
+            </div>
+            <!-- 倒數計時條 -->
+            <div id="progressContainer" class="w-full h-3 bg-slate-100 rounded-full overflow-hidden hidden border border-slate-200">
+                <div id="progressBar" class="h-full bg-gradient-to-r from-blue-400 to-indigo-500 w-0 transition-all duration-100 linear"></div>
+            </div>
         </div>
 
         <!-- 雙人/單人顯示容器 -->
@@ -135,6 +155,15 @@
         </div>
     </main>
 
+    <!-- 頁尾設計資訊 -->
+    <footer class="mt-12 mb-8 text-center text-slate-500 text-sm">
+        <p>設計：
+            <a href="https://www.facebook.com/mpotkevin" target="_blank" class="text-blue-600 hover:underline font-bold transition-colors">
+                職能治療師 - 鄭凱文
+            </a>
+        </p>
+    </footer>
+
     <script>
         const colors = [
             { id: 'red', name: '紅', class: 'color-red' },
@@ -143,8 +172,14 @@
             { id: 'green', name: '綠', class: 'color-green' }
         ];
 
-        let timerId = null;
-        let countdownId = null;
+        const limbs = ['左手', '右手', '左腳', '右腳'];
+
+        // 計時器相關變數
+        let countdownTimerId = null;
+        let countdownIntervalId = null;
+        let stopwatchIntervalId = null;
+        let startTime = 0;
+        let questionCount = 0;
 
         const areaA = document.getElementById('areaA');
         const areaB = document.getElementById('areaB');
@@ -163,6 +198,9 @@
         const resetBtn = document.getElementById('resetBtn');
         const progressBar = document.getElementById('progressBar');
         const progressContainer = document.getElementById('progressContainer');
+        const infoDisplay = document.getElementById('infoDisplay');
+        const currentQuestionNum = document.getElementById('currentQuestionNum');
+        const stopwatchDisplay = document.getElementById('stopwatchDisplay');
 
         function shuffle(array) {
             return [...array].sort(() => Math.random() - 0.5);
@@ -183,17 +221,44 @@
             return result;
         }
 
-        function clearTimers() {
-            if (timerId) clearTimeout(timerId);
-            if (countdownId) clearInterval(countdownId);
+        // 停止所有計時
+        function stopAllTimers() {
+            if (countdownTimerId) clearTimeout(countdownTimerId);
+            if (countdownIntervalId) clearInterval(countdownIntervalId);
+            if (stopwatchIntervalId) clearInterval(stopwatchIntervalId);
             progressBar.style.width = '0%';
             progressContainer.classList.add('hidden');
         }
 
-        function createTaskElement(color, isHidden = false) {
+        // 啟動碼錶
+        function startStopwatch() {
+            if (stopwatchIntervalId) clearInterval(stopwatchIntervalId);
+            startTime = Date.now();
+            stopwatchIntervalId = setInterval(updateStopwatch, 500); 
+            updateStopwatch(); 
+        }
+
+        function updateStopwatch() {
+            const now = Date.now();
+            const diff = now - startTime;
+            const sec = Math.floor((diff / 1000) % 60);
+            const min = Math.floor(diff / 60000);
+            
+            stopwatchDisplay.innerText = 
+                `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+        }
+
+        function createTaskElement(color, isHidden = false, customLabel = null) {
             const el = document.createElement('div');
             el.className = `color-card w-20 h-20 sm:w-28 sm:h-28 rounded-full flex items-center justify-center text-white text-3xl font-bold border-4 border-white ${color.class} ${isHidden ? 'hidden-color' : ''}`;
-            el.innerHTML = `<span class="opacity-60 select-none transition-opacity duration-300">${color.name}</span>`;
+            
+            const label = customLabel || color.name;
+            const fontSizeClass = label.length > 1 ? 'text-2xl sm:text-3xl' : 'text-3xl sm:text-4xl';
+            
+            // 針對 Stroop 模式或特定底色調整字體顏色對比
+            const textColorClass = (color.id === 'yellow') ? 'text-slate-800' : 'text-white';
+            
+            el.innerHTML = `<span class="opacity-90 select-none transition-opacity duration-300 ${fontSizeClass} ${textColorClass}">${label}</span>`;
             el.dataset.colorId = color.id;
             return el;
         }
@@ -223,7 +288,14 @@
         }
 
         function generateTask() {
-            clearTimers();
+            stopAllTimers();
+            
+            // 更新題數與碼錶
+            questionCount++;
+            currentQuestionNum.innerText = questionCount;
+            infoDisplay.classList.remove('hidden');
+            startStopwatch();
+
             const mode = gameMode.value;
             const pMode = playerMode.value;
             const seconds = parseInt(timerSeconds.value);
@@ -235,15 +307,28 @@
 
             const isDouble = pMode === 'double';
 
-            if (mode === 'sequence' || mode === 'flash') {
-                shuffle(colors).slice(0, countValue).forEach(color => {
-                    contentA.appendChild(createTaskElement(color));
-                });
-                if (isDouble) {
-                    shuffle(colors).slice(0, countValue).forEach(color => {
-                        contentB.appendChild(createTaskElement(color));
+            if (mode === 'sequence' || mode === 'flash' || mode === 'coordination' || mode === 'stroop') {
+                const buildDisplay = (container) => {
+                    const sequence = shuffle(colors).slice(0, countValue);
+                    sequence.forEach(colorObj => {
+                        let label = null;
+                        let bgColorObj = colorObj;
+
+                        if (mode === 'coordination') {
+                            label = limbs[Math.floor(Math.random() * limbs.length)];
+                        } else if (mode === 'stroop') {
+                            // 文字陷阱：label 是文字內容，bgColorObj 是背景顏色
+                            label = colorObj.name;
+                            bgColorObj = colors[Math.floor(Math.random() * colors.length)];
+                        }
+                        
+                        container.appendChild(createTaskElement(bgColorObj, false, label));
                     });
-                }
+                };
+
+                buildDisplay(contentA);
+                if (isDouble) buildDisplay(contentB);
+
             } else if (mode === 'collection') {
                 const totalQuantity = Math.floor(Math.random() * (countValue * 1.5)) + countValue; 
                 const distA = distributeSum(totalQuantity, countValue);
@@ -255,27 +340,30 @@
                 }
             }
 
+            // 處理定時與閃視隱藏邏輯
             if (mode === 'flash') {
-                handleTimer(seconds, () => {
+                handleCountdown(seconds, () => {
                     document.querySelectorAll('.color-card').forEach(card => card.classList.add('hidden-color'));
                     revealBtn.classList.remove('hidden');
                 });
             } else if (seconds > 0) {
-                handleTimer(seconds, generateTask);
+                handleCountdown(seconds, generateTask);
             }
         }
 
-        function handleTimer(seconds, callback) {
+        // 處理進度條倒數
+        function handleCountdown(seconds, callback) {
             if (seconds <= 0) return;
             progressContainer.classList.remove('hidden');
             let timeLeft = seconds * 1000;
             const interval = 100;
-            countdownId = setInterval(() => {
+            
+            countdownIntervalId = setInterval(() => {
                 timeLeft -= interval;
                 const percentage = ((seconds * 1000 - timeLeft) / (seconds * 1000)) * 100;
                 progressBar.style.width = `${percentage}%`;
                 if (timeLeft <= 0) {
-                    clearInterval(countdownId);
+                    clearInterval(countdownIntervalId);
                     callback();
                 }
             }, interval);
@@ -298,13 +386,17 @@
         });
 
         nextBtn.addEventListener('click', generateTask);
+        
         revealBtn.addEventListener('click', () => {
             document.querySelectorAll('.color-card').forEach(card => card.classList.remove('hidden-color'));
             revealBtn.classList.add('hidden');
         });
 
         resetBtn.addEventListener('click', () => {
-            clearTimers();
+            stopAllTimers();
+            questionCount = 0;
+            infoDisplay.classList.add('hidden');
+            stopwatchDisplay.innerText = "00:00";
             contentA.innerHTML = '<div class="text-slate-300 italic text-lg text-center">準備就緒，點擊「開始」</div>';
             contentB.innerHTML = '';
             startBtn.classList.remove('hidden');
