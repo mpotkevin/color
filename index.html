@@ -100,7 +100,7 @@
                 <select id="shapeMode" class="w-full border-2 border-slate-100 rounded-xl p-2 focus:ring-2 focus:ring-blue-400 outline-none transition-all cursor-pointer">
                     <option value="circle">經典圓形</option>
                     <option value="square">穩定正方形</option>
-                    <option value="rectangle">清晰長方形</option>
+                    <option value="rectangle">清晰長方形(直)</option>
                 </select>
             </div>
 
@@ -284,13 +284,14 @@
             // 基礎樣式
             let shapeClasses = "color-card flex items-center justify-center text-white font-bold border-4 border-white ";
             
-            // 根據形狀設定尺寸與圓角
+            // 根據形狀設定尺寸與圓角 - 此處長短邊已互換
             if (shape === 'circle') {
                 shapeClasses += "w-20 h-20 sm:w-28 sm:h-28 rounded-full";
             } else if (shape === 'square') {
                 shapeClasses += "w-20 h-20 sm:w-28 sm:h-28 rounded-2xl";
             } else if (shape === 'rectangle') {
-                shapeClasses += "w-28 h-20 sm:w-40 sm:h-28 rounded-2xl";
+                // 調整為直向長方形：寬縮小、高增加
+                shapeClasses += "w-20 h-28 sm:w-28 sm:h-40 rounded-2xl";
             }
 
             el.className = `${shapeClasses} ${color.class} ${isHidden ? 'hidden-color' : ''}`;
@@ -301,7 +302,7 @@
             // 針對 Stroop 模式或特定底色調整字體顏色對比
             const textColorClass = (color.id === 'yellow') ? 'text-slate-800' : 'text-white';
             
-            el.innerHTML = `<span class="opacity-90 select-none transition-opacity duration-300 ${fontSizeClass} ${textColorClass}">${label}</span>`;
+            el.innerHTML = `<span class="opacity-90 select-none transition-opacity duration-300 ${fontSizeClass} ${textColorClass} text-center px-1">${label}</span>`;
             el.dataset.colorId = color.id;
             return el;
         }
