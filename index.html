@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>四色圓盤訓練大師 - 專業版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap');
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #f8fafc;
+        }
+        .color-card {
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        /* 隱藏時，連同內部的文字也要消失 */
+        .hidden-color {
+            background-color: #e2e8f0 !important;
+            transform: scale(0.9);
+            box-shadow: none !important;
+        }
+        .hidden-color span {
+            opacity: 0 !important;
+        }
+        
+        .color-red { background-color: #ef4444; box-shadow: 0 4px 0 #b91c1c; }
+        .color-blue { background-color: #3b82f6; box-shadow: 0 4px 0 #1d4ed8; }
+        .color-yellow { background-color: #eab308; box-shadow: 0 4px 0 #a16207; }
+        .color-green { background-color: #22c55e; box-shadow: 0 4px 0 #15803d; }
+        
+        @keyframes pulse-slow {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+        .active-task {
+            animation: pulse-slow 2s infinite;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-4">
+
+    <!-- 標題區 -->
+    <header class="text-center mb-6">
+        <h1 class="text-3xl font-bold text-slate-800">🎨 四色圓盤訓練大師</h1>
+        <div class="flex justify-center gap-4 mt-2">
+            <span class="px-3 py-1 bg-red-100 text-red-600 rounded-full text-xs font-bold border border-red-200">紅</span>
+            <span class="px-3 py-1 bg-blue-100 text-blue-600 rounded-full text-xs font-bold border border-blue-200">藍</span>
+            <span class="px-3 py-1 bg-yellow-100 text-yellow-600 rounded-full text-xs font-bold border border-yellow-200">黃</span>
+            <span class="px-3 py-1 bg-green-100 text-green-600 rounded-full text-xs font-bold border border-green-200">綠</span>
+        </div>
+    </header>
+
+    <!-- 設定面板 -->
+    <div class="w-full max-w-5xl bg-white rounded-2xl shadow-xl p-6 mb-6 border border-slate-100">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <!-- 模式選擇 -->
+            <div>
+                <label class="block text-sm font-bold text-slate-600 mb-1">訓練模式</label>
+                <select id="gameMode" class="w-full border-2 border-slate-100 rounded-xl p-2 focus:ring-2 focus:ring-blue-400 outline-none transition-all cursor-pointer">
+                    <option value="sequence">顏色序列 (隨機排列)</option>
+                    <option value="flash">閃視記憶 (時間到隱藏)</option>
+                    <option value="collection">隨機指令 (數量+顏色)</option>
+                </select>
+            </div>
+            
+            <!-- 人數模式 -->
+            <div>
+                <label class="block text-sm font-bold text-slate-600 mb-1">玩家模式</label>
+                <select id="playerMode" class="w-full border-2 border-slate-100 rounded-xl p-2 focus:ring-2 focus:ring-blue-400 outline-none transition-all cursor-pointer">
+                    <option value="single">單人訓練</option>
+                    <option value="double">雙人對抗 (A/B組)</option>
+                </select>
+            </div>
+
+            <!-- 項目數量 -->
+            <div id="itemCountWrapper">
+                <label class="block text-sm font-bold text-slate-600 mb-1">項目數量 (1-4)</label>
+                <input type="number" id="itemCount" min="1" max="4" value="4" class="w-full border-2 border-slate-100 rounded-xl p-2 focus:ring-2 focus:ring-blue-400 outline-none transition-all">
+            </div>
+
+            <!-- 時間設定 -->
+            <div>
+                <label class="block text-sm font-bold text-slate-600 mb-1">換題/閃視 (秒)</label>
+                <input type="number" id="timerSeconds" min="0" value="0" class="w-full border-2 border-slate-100 rounded-xl p-2 focus:ring-2 focus:ring-blue-400 outline-none transition-all" placeholder="0為手動">
+            </div>
+
+            <!-- 控制 -->
+            <div class="flex items-end">
+                <button id="startBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl shadow-lg transition-all active:scale-95">
+                    開始訓練
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主展示區 -->
+    <main class="w-full max-w-6xl flex-grow flex flex-col">
+        
+        <!-- 倒數計時條 -->
+        <div id="progressContainer" class="w-full h-3 bg-slate-100 rounded-full mb-6 overflow-hidden hidden border border-slate-200">
+            <div id="progressBar" class="h-full bg-gradient-to-r from-blue-400 to-indigo-500 w-0 transition-all duration-100 linear"></div>
+        </div>
+
+        <!-- 雙人/單人顯示容器 -->
+        <div id="mainDisplayContainer" class="flex flex-col md:flex-row gap-8 w-full flex-grow items-stretch">
+            
+            <!-- A 組 / 單人區 -->
+            <div id="areaA" class="flex-1 bg-white rounded-3xl p-6 shadow-sm border-2 border-dashed border-slate-200 flex flex-col items-center justify-center min-h-[350px]">
+                <h2 id="labelA" class="text-slate-400 font-bold mb-4 hidden">PLAYER A</h2>
+                <div id="contentA" class="flex flex-wrap justify-center gap-4 w-full">
+                    <div class="text-slate-300 italic text-lg text-center">準備就緒，點擊「開始」</div>
+                </div>
+            </div>
+
+            <!-- B 組區 (預設隱藏) -->
+            <div id="areaB" class="flex-1 bg-white rounded-3xl p-6 shadow-sm border-2 border-dashed border-slate-200 flex flex-col items-center justify-center min-h-[350px] hidden">
+                <h2 class="text-slate-400 font-bold mb-4">PLAYER B</h2>
+                <div id="contentB" class="flex flex-wrap justify-center gap-4 w-full"></div>
+            </div>
+
+        </div>
+
+        <!-- 下方控制按鈕 -->
+        <div class="mt-8 flex flex-wrap justify-center gap-4">
+            <button id="nextBtn" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-10 rounded-full shadow-lg transform active:scale-95 transition-all hidden">
+                下一題 (NEXT)
+            </button>
+            <button id="revealBtn" class="bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-10 rounded-full shadow-lg transform active:scale-95 transition-all hidden">
+                顯示答案 (REVEAL)
+            </button>
+            <button id="resetBtn" class="bg-slate-200 hover:bg-slate-300 text-slate-600 font-bold py-3 px-10 rounded-full shadow-lg transform active:scale-95 transition-all">
+                結束重設
+            </button>
+        </div>
+    </main>
+
+    <script>
+        const colors = [
+            { id: 'red', name: '紅', class: 'color-red' },
+            { id: 'blue', name: '藍', class: 'color-blue' },
+            { id: 'yellow', name: '黃', class: 'color-yellow' },
+            { id: 'green', name: '綠', class: 'color-green' }
+        ];
+
+        let timerId = null;
+        let countdownId = null;
+
+        const areaA = document.getElementById('areaA');
+        const areaB = document.getElementById('areaB');
+        const contentA = document.getElementById('contentA');
+        const contentB = document.getElementById('contentB');
+        const labelA = document.getElementById('labelA');
+        
+        const gameMode = document.getElementById('gameMode');
+        const playerMode = document.getElementById('playerMode');
+        const timerSeconds = document.getElementById('timerSeconds');
+        const itemCountInput = document.getElementById('itemCount');
+        
+        const startBtn = document.getElementById('startBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const revealBtn = document.getElementById('revealBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const progressBar = document.getElementById('progressBar');
+        const progressContainer = document.getElementById('progressContainer');
+
+        function shuffle(array) {
+            return [...array].sort(() => Math.random() - 0.5);
+        }
+
+        function distributeSum(total, buckets) {
+            let result = Array(buckets).fill(1);
+            let remaining = total - buckets;
+            while (remaining > 0) {
+                let idx = Math.floor(Math.random() * buckets);
+                if (result[idx] < 4) {
+                    result[idx]++;
+                    remaining--;
+                } else {
+                    if (result.every(v => v >= 4)) break;
+                }
+            }
+            return result;
+        }
+
+        function clearTimers() {
+            if (timerId) clearTimeout(timerId);
+            if (countdownId) clearInterval(countdownId);
+            progressBar.style.width = '0%';
+            progressContainer.classList.add('hidden');
+        }
+
+        function createTaskElement(color, isHidden = false) {
+            const el = document.createElement('div');
+            el.className = `color-card w-20 h-20 sm:w-28 sm:h-28 rounded-full flex items-center justify-center text-white text-3xl font-bold border-4 border-white ${color.class} ${isHidden ? 'hidden-color' : ''}`;
+            el.innerHTML = `<span class="opacity-60 select-none transition-opacity duration-300">${color.name}</span>`;
+            el.dataset.colorId = color.id;
+            return el;
+        }
+
+        function createCollectionTask(count, distributionList) {
+            const shuffled = shuffle(colors).slice(0, count); 
+            const container = document.createElement('div');
+            container.className = 'flex flex-col gap-4 w-full';
+            
+            shuffled.forEach((color, index) => {
+                const num = distributionList[index];
+                const item = document.createElement('div');
+                item.className = 'flex items-center gap-4 bg-slate-50 p-4 rounded-2xl border-l-8 active-task';
+                item.style.borderLeftColor = getHex(color.id);
+                item.innerHTML = `
+                    <div class="w-10 h-10 rounded-full ${color.class}"></div>
+                    <div class="text-xl font-bold text-slate-700 leading-tight">拿 <span class="text-3xl text-blue-600">${num}</span> 個${color.name}色</div>
+                `;
+                container.appendChild(item);
+            });
+            return container;
+        }
+
+        function getHex(id) {
+            const map = { red: '#ef4444', blue: '#3b82f6', yellow: '#eab308', green: '#22c55e' };
+            return map[id];
+        }
+
+        function generateTask() {
+            clearTimers();
+            const mode = gameMode.value;
+            const pMode = playerMode.value;
+            const seconds = parseInt(timerSeconds.value);
+            const countValue = Math.min(Math.max(parseInt(itemCountInput.value), 1), 4);
+
+            contentA.innerHTML = '';
+            contentB.innerHTML = '';
+            revealBtn.classList.add('hidden');
+
+            const isDouble = pMode === 'double';
+
+            if (mode === 'sequence' || mode === 'flash') {
+                shuffle(colors).slice(0, countValue).forEach(color => {
+                    contentA.appendChild(createTaskElement(color));
+                });
+                if (isDouble) {
+                    shuffle(colors).slice(0, countValue).forEach(color => {
+                        contentB.appendChild(createTaskElement(color));
+                    });
+                }
+            } else if (mode === 'collection') {
+                const totalQuantity = Math.floor(Math.random() * (countValue * 1.5)) + countValue; 
+                const distA = distributeSum(totalQuantity, countValue);
+                contentA.appendChild(createCollectionTask(countValue, distA));
+
+                if (isDouble) {
+                    const distB = distributeSum(totalQuantity, countValue);
+                    contentB.appendChild(createCollectionTask(countValue, distB));
+                }
+            }
+
+            if (mode === 'flash') {
+                handleTimer(seconds, () => {
+                    document.querySelectorAll('.color-card').forEach(card => card.classList.add('hidden-color'));
+                    revealBtn.classList.remove('hidden');
+                });
+            } else if (seconds > 0) {
+                handleTimer(seconds, generateTask);
+            }
+        }
+
+        function handleTimer(seconds, callback) {
+            if (seconds <= 0) return;
+            progressContainer.classList.remove('hidden');
+            let timeLeft = seconds * 1000;
+            const interval = 100;
+            countdownId = setInterval(() => {
+                timeLeft -= interval;
+                const percentage = ((seconds * 1000 - timeLeft) / (seconds * 1000)) * 100;
+                progressBar.style.width = `${percentage}%`;
+                if (timeLeft <= 0) {
+                    clearInterval(countdownId);
+                    callback();
+                }
+            }, interval);
+        }
+
+        playerMode.addEventListener('change', () => {
+            if (playerMode.value === 'double') {
+                areaB.classList.remove('hidden');
+                labelA.classList.remove('hidden');
+            } else {
+                areaB.classList.add('hidden');
+                labelA.classList.add('hidden');
+            }
+        });
+
+        startBtn.addEventListener('click', () => {
+            startBtn.classList.add('hidden');
+            nextBtn.classList.remove('hidden');
+            generateTask();
+        });
+
+        nextBtn.addEventListener('click', generateTask);
+        revealBtn.addEventListener('click', () => {
+            document.querySelectorAll('.color-card').forEach(card => card.classList.remove('hidden-color'));
+            revealBtn.classList.add('hidden');
+        });
+
+        resetBtn.addEventListener('click', () => {
+            clearTimers();
+            contentA.innerHTML = '<div class="text-slate-300 italic text-lg text-center">準備就緒，點擊「開始」</div>';
+            contentB.innerHTML = '';
+            startBtn.classList.remove('hidden');
+            nextBtn.classList.add('hidden');
+            revealBtn.classList.add('hidden');
+        });
+    </script>
+</body>
+</html>
