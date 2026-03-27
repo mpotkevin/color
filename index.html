@@ -41,24 +41,38 @@
         .timer-font {
             font-family: 'Courier New', Courier, monospace;
         }
+
+        /* 平滑摺疊動畫 */
+        #settingsPanel {
+            max-height: 1000px;
+            overflow: hidden;
+            transition: max-height 0.5s ease-in-out, opacity 0.3s ease;
+        }
+        #settingsPanel.collapsed {
+            max-height: 0;
+            opacity: 0;
+            padding: 0;
+            margin-bottom: 0;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center p-4">
 
     <!-- 標題區 -->
-    <header class="text-center mb-6">
+    <header class="text-center mb-4">
         <h1 class="text-3xl font-bold text-slate-800">🎨 四色圓盤訓練大師</h1>
-        <div class="flex justify-center gap-4 mt-2">
-            <span class="px-3 py-1 bg-red-100 text-red-600 rounded-full text-xs font-bold border border-red-200">紅</span>
-            <span class="px-3 py-1 bg-blue-100 text-blue-600 rounded-full text-xs font-bold border border-blue-200">藍</span>
-            <span class="px-3 py-1 bg-yellow-100 text-yellow-600 rounded-full text-xs font-bold border border-yellow-200">黃</span>
-            <span class="px-3 py-1 bg-green-100 text-green-600 rounded-full text-xs font-bold border border-green-200">綠</span>
-        </div>
     </header>
 
+    <!-- 設定面板控制 -->
+    <div class="w-full max-w-5xl mb-4 flex justify-end">
+        <button id="toggleSettingsBtn" class="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-sm bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100 transition-all">
+            <span id="toggleIcon">🔼</span> <span id="toggleText">收起設定</span>
+        </button>
+    </div>
+
     <!-- 設定面板 -->
-    <div class="w-full max-w-5xl bg-white rounded-2xl shadow-xl p-6 mb-6 border border-slate-100">
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+    <div id="settingsPanel" class="w-full max-w-5xl bg-white rounded-2xl shadow-xl p-6 mb-6 border border-slate-100">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
             <!-- 模式選擇 -->
             <div>
                 <label class="block text-sm font-bold text-slate-600 mb-1">訓練模式</label>
@@ -80,6 +94,16 @@
                 </select>
             </div>
 
+            <!-- 圖形形狀 -->
+            <div>
+                <label class="block text-sm font-bold text-slate-600 mb-1">圖形形狀</label>
+                <select id="shapeMode" class="w-full border-2 border-slate-100 rounded-xl p-2 focus:ring-2 focus:ring-blue-400 outline-none transition-all cursor-pointer">
+                    <option value="circle">經典圓形</option>
+                    <option value="square">穩定正方形</option>
+                    <option value="rectangle">清晰長方形</option>
+                </select>
+            </div>
+
             <!-- 項目數量 -->
             <div id="itemCountWrapper">
                 <label class="block text-sm font-bold text-slate-600 mb-1">項目數量 (1-4)</label>
@@ -88,7 +112,7 @@
 
             <!-- 時間設定 -->
             <div>
-                <label class="block text-sm font-bold text-slate-600 mb-1">換題/閃視 (秒)</label>
+                <label class="block text-sm font-bold text-slate-600 mb-1">計時設定 (秒)</label>
                 <input type="number" id="timerSeconds" min="0" value="0" class="w-full border-2 border-slate-100 rounded-xl p-2 focus:ring-2 focus:ring-blue-400 outline-none transition-all" placeholder="0為手動">
             </div>
 
@@ -189,6 +213,7 @@
         
         const gameMode = document.getElementById('gameMode');
         const playerMode = document.getElementById('playerMode');
+        const shapeMode = document.getElementById('shapeMode');
         const timerSeconds = document.getElementById('timerSeconds');
         const itemCountInput = document.getElementById('itemCount');
         
@@ -201,6 +226,10 @@
         const infoDisplay = document.getElementById('infoDisplay');
         const currentQuestionNum = document.getElementById('currentQuestionNum');
         const stopwatchDisplay = document.getElementById('stopwatchDisplay');
+        const settingsPanel = document.getElementById('settingsPanel');
+        const toggleSettingsBtn = document.getElementById('toggleSettingsBtn');
+        const toggleIcon = document.getElementById('toggleIcon');
+        const toggleText = document.getElementById('toggleText');
 
         function shuffle(array) {
             return [...array].sort(() => Math.random() - 0.5);
@@ -250,10 +279,24 @@
 
         function createTaskElement(color, isHidden = false, customLabel = null) {
             const el = document.createElement('div');
-            el.className = `color-card w-20 h-20 sm:w-28 sm:h-28 rounded-full flex items-center justify-center text-white text-3xl font-bold border-4 border-white ${color.class} ${isHidden ? 'hidden-color' : ''}`;
+            const shape = shapeMode.value;
+            
+            // 基礎樣式
+            let shapeClasses = "color-card flex items-center justify-center text-white font-bold border-4 border-white ";
+            
+            // 根據形狀設定尺寸與圓角
+            if (shape === 'circle') {
+                shapeClasses += "w-20 h-20 sm:w-28 sm:h-28 rounded-full";
+            } else if (shape === 'square') {
+                shapeClasses += "w-20 h-20 sm:w-28 sm:h-28 rounded-2xl";
+            } else if (shape === 'rectangle') {
+                shapeClasses += "w-28 h-20 sm:w-40 sm:h-28 rounded-2xl";
+            }
+
+            el.className = `${shapeClasses} ${color.class} ${isHidden ? 'hidden-color' : ''}`;
             
             const label = customLabel || color.name;
-            const fontSizeClass = label.length > 1 ? 'text-2xl sm:text-3xl' : 'text-3xl sm:text-4xl';
+            const fontSizeClass = label.length > 2 ? 'text-xl sm:text-2xl' : 'text-3xl sm:text-4xl';
             
             // 針對 Stroop 模式或特定底色調整字體顏色對比
             const textColorClass = (color.id === 'yellow') ? 'text-slate-800' : 'text-white';
@@ -317,7 +360,6 @@
                         if (mode === 'coordination') {
                             label = limbs[Math.floor(Math.random() * limbs.length)];
                         } else if (mode === 'stroop') {
-                            // 文字陷阱：label 是文字內容，bgColorObj 是背景顏色
                             label = colorObj.name;
                             bgColorObj = colors[Math.floor(Math.random() * colors.length)];
                         }
@@ -369,6 +411,13 @@
             }, interval);
         }
 
+        // 收納設定面板邏輯
+        toggleSettingsBtn.addEventListener('click', () => {
+            const isCollapsed = settingsPanel.classList.toggle('collapsed');
+            toggleIcon.innerText = isCollapsed ? '🔽' : '🔼';
+            toggleText.innerText = isCollapsed ? '展開設定' : '收起設定';
+        });
+
         playerMode.addEventListener('change', () => {
             if (playerMode.value === 'double') {
                 areaB.classList.remove('hidden');
@@ -382,6 +431,10 @@
         startBtn.addEventListener('click', () => {
             startBtn.classList.add('hidden');
             nextBtn.classList.remove('hidden');
+            // 開始訓練後自動收起設定面板，讓畫面更清爽
+            settingsPanel.classList.add('collapsed');
+            toggleIcon.innerText = '🔽';
+            toggleText.innerText = '展開設定';
             generateTask();
         });
 
@@ -402,6 +455,10 @@
             startBtn.classList.remove('hidden');
             nextBtn.classList.add('hidden');
             revealBtn.classList.add('hidden');
+            // 重置時展開設定
+            settingsPanel.classList.remove('collapsed');
+            toggleIcon.innerText = '🔼';
+            toggleText.innerText = '收起設定';
         });
     </script>
 </body>
